@@ -1,0 +1,27 @@
+{
+  "domain": "nr_blinds",
+  "name": "NR Home Blinds",
+  "codeowners": ["@mnagy112"],
+  "config_flow": true,
+  "dependencies": ["network"],
+  "dhcp": [
+    {
+      "registered_devices": true
+    },
+    {
+      "hostname": "motion_*"
+    },
+    {
+      "hostname": "brel_*"
+    },
+    {
+      "hostname": "connector_*"
+    }
+  ],
+  "documentation": "https://github.com/mnagy112/nr_blinds",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/ludeeus/nr_blinds/issues",
+  "version": "0.0.0",
+  "loggers": ["motionblinds"],
+  "requirements": ["motionblinds==0.6.24"]
+}
