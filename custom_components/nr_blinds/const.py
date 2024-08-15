@@ -2,9 +2,9 @@
 
 from homeassistant.const import Platform
 
-DOMAIN = "motion_blinds"
-MANUFACTURER = "Motionblinds, Coulisse B.V."
-DEFAULT_GATEWAY_NAME = "Motionblinds Gateway"
+DOMAIN = "nr_blinds"
+MANUFACTURER = "SmartHome"
+DEFAULT_GATEWAY_NAME = "SmartHome Gateway"
 
 PLATFORMS = [Platform.COVER, Platform.SENSOR]
 
