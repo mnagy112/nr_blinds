@@ -66,21 +66,21 @@ TILT_DEVICE_MAP = {
     BlindType.VerticalBlindRight: CoverDeviceClass.BLIND,
 }
 
-TILT_ONLY_DEVICE_MAP = {
-    BlindType.WoodShutter: CoverDeviceClass.BLIND,
-}
+# TILT_ONLY_DEVICE_MAP = {
+#     BlindType.WoodShutter: CoverDeviceClass.BLIND,
+# }
 
-TDBU_DEVICE_MAP = {
-    BlindType.TopDownBottomUp: CoverDeviceClass.SHADE,
-    BlindType.TriangleBlind: CoverDeviceClass.BLIND,
-}
+# TDBU_DEVICE_MAP = {
+#     BlindType.TopDownBottomUp: CoverDeviceClass.SHADE,
+#     BlindType.TriangleBlind: CoverDeviceClass.BLIND,
+# }
 
 
-SET_ABSOLUTE_POSITION_SCHEMA: VolDictType = {
-    vol.Required(ATTR_ABSOLUTE_POSITION): vol.All(cv.positive_int, vol.Range(max=100)),
-    vol.Optional(ATTR_TILT_POSITION): vol.All(cv.positive_int, vol.Range(max=100)),
-    vol.Optional(ATTR_WIDTH): vol.All(cv.positive_int, vol.Range(max=100)),
-}
+# SET_ABSOLUTE_POSITION_SCHEMA: VolDictType = {
+#     vol.Required(ATTR_ABSOLUTE_POSITION): vol.All(cv.positive_int, vol.Range(max=100)),
+#     vol.Optional(ATTR_TILT_POSITION): vol.All(cv.positive_int, vol.Range(max=100)),
+#     vol.Optional(ATTR_WIDTH): vol.All(cv.positive_int, vol.Range(max=100)),
+# }
 
 
 async def async_setup_entry(
@@ -112,41 +112,6 @@ async def async_setup_entry(
                 )
             )
 
-        elif blind.type in TILT_ONLY_DEVICE_MAP:
-            entities.append(
-                MotionTiltOnlyDevice(
-                    coordinator,
-                    blind,
-                    TILT_ONLY_DEVICE_MAP[blind.type],
-                )
-            )
-
-        elif blind.type in TDBU_DEVICE_MAP:
-            entities.append(
-                MotionTDBUDevice(
-                    coordinator,
-                    blind,
-                    TDBU_DEVICE_MAP[blind.type],
-                    "Top",
-                )
-            )
-            entities.append(
-                MotionTDBUDevice(
-                    coordinator,
-                    blind,
-                    TDBU_DEVICE_MAP[blind.type],
-                    "Bottom",
-                )
-            )
-            entities.append(
-                MotionTDBUDevice(
-                    coordinator,
-                    blind,
-                    TDBU_DEVICE_MAP[blind.type],
-                    "Combined",
-                )
-            )
-
         else:
             _LOGGER.warning(
                 "Blind type '%s' not yet supported, assuming RollerBlind",
@@ -162,12 +127,12 @@ async def async_setup_entry(
 
     async_add_entities(entities)
 
-    platform = entity_platform.async_get_current_platform()
-    platform.async_register_entity_service(
-        SERVICE_SET_ABSOLUTE_POSITION,
-        SET_ABSOLUTE_POSITION_SCHEMA,
-        "async_set_absolute_position",
-    )
+    # platform = entity_platform.async_get_current_platform()
+    # platform.async_register_entity_service(
+    #     SERVICE_SET_ABSOLUTE_POSITION,
+    #     SET_ABSOLUTE_POSITION_SCHEMA,
+    #     "async_set_absolute_position",
+    # )
 
 
 class MotionBaseDevice(MotionCoordinatorEntity, CoverEntity):
@@ -218,92 +183,30 @@ class MotionBaseDevice(MotionCoordinatorEntity, CoverEntity):
             return None
         return self._blind.position == 100
 
-    async def async_scheduled_update_request(self, *_):
-        """Request a state update from the blind at a scheduled point in time."""
-        # add the last position to the list and keep the list at max 2 items
-        self._previous_positions.append(self.current_cover_position)
-        if len(self._previous_positions) > 2:
-            del self._previous_positions[: len(self._previous_positions) - 2]
-
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(self._blind.Update_trigger)
-
-        self.async_write_ha_state()
-
-        if len(self._previous_positions) < 2 or not all(
-            self.current_cover_position == prev_position
-            for prev_position in self._previous_positions
-        ):
-            # keep updating the position @self._update_interval_moving until the position does not change.
-            self._requesting_position = async_call_later(
-                self.hass,
-                self._update_interval_moving,
-                self.async_scheduled_update_request,
-            )
-        else:
-            self._previous_positions = []
-            self._requesting_position = None
-
-    async def async_request_position_till_stop(self, delay=None):
-        """Request the position of the blind every self._update_interval_moving seconds until it stops moving."""
-        if delay is None:
-            delay = self._update_interval_moving
-
-        self._previous_positions = []
-        if self.current_cover_position is None:
-            return
-        if self._requesting_position is not None:
-            self._requesting_position()
-
-        self._requesting_position = async_call_later(
-            self.hass, delay, self.async_scheduled_update_request
-        )
-
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
         async with self._api_lock:
             await self.hass.async_add_executor_job(self._blind.Open)
-        await self.async_request_position_till_stop()
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close cover."""
         async with self._api_lock:
             await self.hass.async_add_executor_job(self._blind.Close)
-        await self.async_request_position_till_stop()
-
-    async def async_set_cover_position(self, **kwargs: Any) -> None:
-        """Move the cover to a specific position."""
-        position = kwargs[ATTR_POSITION]
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(
-                self._blind.Set_position,
-                100 - position,
-                None,
-                self._restore_tilt,
-            )
-        await self.async_request_position_till_stop()
-
-    async def async_set_absolute_position(self, **kwargs):
-        """Move the cover to a specific absolute position (see TDBU)."""
-        position = kwargs[ATTR_ABSOLUTE_POSITION]
-        angle = kwargs.get(ATTR_TILT_POSITION)
-        if angle is not None:
-            angle = angle * 180 / 100
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(
-                self._blind.Set_position,
-                100 - position,
-                angle,
-                self._restore_tilt,
-            )
-        await self.async_request_position_till_stop()
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
         async with self._api_lock:
             await self.hass.async_add_executor_job(self._blind.Stop)
 
-        await self.async_request_position_till_stop(delay=UPDATE_DELAY_STOP)
+    async def async_open_cover_tilt(self, **kwargs: Any) -> None:
+        """Open the cover tilt."""
+        async with self._api_lock:
+            await self.hass.async_add_executor_job(self._blind.Jog_up)
+
+    async def async_close_cover_tilt(self, **kwargs: Any) -> None:
+        """Close the cover tilt."""
+        async with self._api_lock:
+            await self.hass.async_add_executor_job(self._blind.Jog_down)
 
 
 class MotionPositionDevice(MotionBaseDevice):
@@ -315,7 +218,7 @@ class MotionPositionDevice(MotionBaseDevice):
 class MotionTiltDevice(MotionPositionDevice):
     """Representation of a Motionblinds Device."""
 
-    _restore_tilt = True
+    _restore_tilt = False
 
     @property
     def current_cover_tilt_position(self) -> int | None:
@@ -333,158 +236,3 @@ class MotionTiltDevice(MotionPositionDevice):
         if self._blind.position is None:
             return None
         return self._blind.position >= 95
-
-    async def async_open_cover_tilt(self, **kwargs: Any) -> None:
-        """Open the cover tilt."""
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(self._blind.Set_angle, 180)
-
-    async def async_close_cover_tilt(self, **kwargs: Any) -> None:
-        """Close the cover tilt."""
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(self._blind.Set_angle, 0)
-
-    async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
-        """Move the cover tilt to a specific position."""
-        angle = kwargs[ATTR_TILT_POSITION] * 180 / 100
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(self._blind.Set_angle, angle)
-
-    async def async_stop_cover_tilt(self, **kwargs: Any) -> None:
-        """Stop the cover."""
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(self._blind.Stop)
-
-        await self.async_request_position_till_stop(delay=UPDATE_DELAY_STOP)
-
-
-class MotionTiltOnlyDevice(MotionTiltDevice):
-    """Representation of a Motionblinds Device."""
-
-    _restore_tilt = False
-
-    @property
-    def supported_features(self) -> CoverEntityFeature:
-        """Flag supported features."""
-        supported_features = (
-            CoverEntityFeature.OPEN_TILT
-            | CoverEntityFeature.CLOSE_TILT
-            | CoverEntityFeature.STOP_TILT
-        )
-
-        if self.current_cover_tilt_position is not None:
-            supported_features |= CoverEntityFeature.SET_TILT_POSITION
-
-        return supported_features
-
-    @property
-    def current_cover_position(self) -> None:
-        """Return current position of cover."""
-        return None
-
-    @property
-    def is_closed(self) -> bool | None:
-        """Return if the cover is closed or not."""
-        if self._blind.angle is None:
-            return None
-        return self._blind.angle == 0
-
-    async def async_set_absolute_position(self, **kwargs):
-        """Move the cover to a specific absolute position (see TDBU)."""
-        angle = kwargs.get(ATTR_TILT_POSITION)
-        if angle is not None:
-            angle = angle * 180 / 100
-            async with self._api_lock:
-                await self.hass.async_add_executor_job(
-                    self._blind.Set_angle,
-                    angle,
-                )
-
-
-class MotionTDBUDevice(MotionBaseDevice):
-    """Representation of a Motion Top Down Bottom Up blind Device."""
-
-    def __init__(self, coordinator, blind, device_class, motor):
-        """Initialize the blind."""
-        super().__init__(coordinator, blind, device_class)
-        self._motor = motor
-        self._motor_key = motor[0]
-        self._attr_translation_key = motor.lower()
-        self._attr_unique_id = f"{blind.mac}-{motor}"
-
-        if self._motor not in ["Bottom", "Top", "Combined"]:
-            _LOGGER.error("Unknown motor '%s'", self._motor)
-
-    @property
-    def current_cover_position(self) -> int | None:
-        """Return current position of cover.
-
-        None is unknown, 0 is open, 100 is closed.
-        """
-        if self._blind.scaled_position is None:
-            return None
-
-        return 100 - self._blind.scaled_position[self._motor_key]
-
-    @property
-    def is_closed(self) -> bool | None:
-        """Return if the cover is closed or not."""
-        if self._blind.position is None:
-            return None
-
-        if self._motor == "Combined":
-            return self._blind.width == 100
-
-        return self._blind.position[self._motor_key] == 100
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return device specific state attributes."""
-        attributes = {}
-        if self._blind.position is not None:
-            attributes[ATTR_ABSOLUTE_POSITION] = (
-                100 - self._blind.position[self._motor_key]
-            )
-        if self._blind.width is not None:
-            attributes[ATTR_WIDTH] = self._blind.width
-        return attributes
-
-    async def async_open_cover(self, **kwargs: Any) -> None:
-        """Open the cover."""
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(self._blind.Open, self._motor_key)
-        await self.async_request_position_till_stop()
-
-    async def async_close_cover(self, **kwargs: Any) -> None:
-        """Close cover."""
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(self._blind.Close, self._motor_key)
-        await self.async_request_position_till_stop()
-
-    async def async_set_cover_position(self, **kwargs: Any) -> None:
-        """Move the cover to a specific scaled position."""
-        position = kwargs[ATTR_POSITION]
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(
-                self._blind.Set_scaled_position, 100 - position, self._motor_key
-            )
-        await self.async_request_position_till_stop()
-
-    async def async_set_absolute_position(self, **kwargs):
-        """Move the cover to a specific absolute position."""
-        position = kwargs[ATTR_ABSOLUTE_POSITION]
-        target_width = kwargs.get(ATTR_WIDTH, None)
-
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(
-                self._blind.Set_position, 100 - position, self._motor_key, target_width
-            )
-
-        await self.async_request_position_till_stop()
-
-    async def async_stop_cover(self, **kwargs: Any) -> None:
-        """Stop the cover."""
-        async with self._api_lock:
-            await self.hass.async_add_executor_job(self._blind.Stop, self._motor_key)
-
-        await self.async_request_position_till_stop(delay=UPDATE_DELAY_STOP)
