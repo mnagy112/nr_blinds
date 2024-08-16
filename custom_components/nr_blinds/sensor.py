@@ -35,71 +35,12 @@ async def async_setup_entry(
 
     for blind in motion_gateway.device_list.values():
         entities.append(MotionSignalStrengthSensor(coordinator, blind))
-        if blind.device_type == DEVICE_TYPE_TDBU:
-            entities.append(MotionTDBUBatterySensor(coordinator, blind, "Bottom"))
-            entities.append(MotionTDBUBatterySensor(coordinator, blind, "Top"))
-        elif blind.battery_voltage is not None and blind.battery_voltage > 0:
-            # Only add battery powered blinds
-            entities.append(MotionBatterySensor(coordinator, blind))
 
     # Do not add signal sensor twice for direct WiFi blinds
     if motion_gateway.device_type not in DEVICE_TYPES_WIFI:
         entities.append(MotionSignalStrengthSensor(coordinator, motion_gateway))
 
     async_add_entities(entities)
-
-
-class MotionBatterySensor(MotionCoordinatorEntity, SensorEntity):
-    """Representation of a Motion Battery Sensor."""
-
-    _attr_device_class = SensorDeviceClass.BATTERY
-    _attr_native_unit_of_measurement = PERCENTAGE
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, blind):
-        """Initialize the Motion Battery Sensor."""
-        super().__init__(coordinator, blind)
-        self._attr_unique_id = f"{blind.mac}-battery"
-
-    @property
-    def native_value(self):
-        """Return the state of the sensor."""
-        return self._blind.battery_level
-
-    @property
-    def extra_state_attributes(self):
-        """Return device specific state attributes."""
-        return {ATTR_BATTERY_VOLTAGE: self._blind.battery_voltage}
-
-
-class MotionTDBUBatterySensor(MotionBatterySensor):
-    """Representation of a Motion Battery Sensor for a Top Down Bottom Up blind."""
-
-    def __init__(self, coordinator, blind, motor):
-        """Initialize the Motion Battery Sensor."""
-        super().__init__(coordinator, blind)
-
-        self._motor = motor
-        self._attr_unique_id = f"{blind.mac}-{motor}-battery"
-        self._attr_translation_key = f"{motor.lower()}_battery"
-
-    @property
-    def native_value(self):
-        """Return the state of the sensor."""
-        if self._blind.battery_level is None:
-            return None
-        return self._blind.battery_level[self._motor[0]]
-
-    @property
-    def extra_state_attributes(self):
-        """Return device specific state attributes."""
-        attributes = {}
-        if self._blind.battery_voltage is not None:
-            attributes[ATTR_BATTERY_VOLTAGE] = self._blind.battery_voltage[
-                self._motor[0]
-            ]
-        return attributes
 
 
 class MotionSignalStrengthSensor(MotionCoordinatorEntity, SensorEntity):

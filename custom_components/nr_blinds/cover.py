@@ -112,19 +112,6 @@ async def async_setup_entry(
                 )
             )
 
-        else:
-            _LOGGER.warning(
-                "Blind type '%s' not yet supported, assuming RollerBlind",
-                blind.blind_type,
-            )
-            entities.append(
-                MotionPositionDevice(
-                    coordinator,
-                    blind,
-                    POSITION_DEVICE_MAP[BlindType.RollerBlind],
-                )
-            )
-
     async_add_entities(entities)
 
     # platform = entity_platform.async_get_current_platform()
@@ -219,6 +206,19 @@ class MotionTiltDevice(MotionPositionDevice):
     """Representation of a Motionblinds Device."""
 
     _restore_tilt = False
+
+    @property
+    def supported_features(self) -> CoverEntityFeature:
+        """Flag supported features."""
+        supported_features = (
+            CoverEntityFeature.OPEN
+            | CoverEntityFeature.CLOSE
+            | CoverEntityFeature.STOP
+            | CoverEntityFeature.OPEN_TILT
+            | CoverEntityFeature.CLOSE_TILT
+        )
+
+        return supported_features
 
     @property
     def current_cover_tilt_position(self) -> int | None:
