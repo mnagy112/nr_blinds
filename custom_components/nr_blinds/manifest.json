@@ -23,5 +23,5 @@
   "issue_tracker": "https://github.com/ludeeus/nr_blinds/issues",
   "loggers": ["motionblinds"],
   "requirements": ["motionblinds==0.6.24"],
-  "version": "0.0.0"
+  "version": "0.0.1"
 }
